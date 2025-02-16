@@ -48,7 +48,7 @@ class ETLPipeline:
 
         return self.df
 
-    def fill_null(self, cols: list, method: str = 'mode', inplace: bool = False, custom_value=None) -> pd.DataFrame:
+    def fill_null(self, cols: list, method: str = 'mode', custom_value=None) -> pd.DataFrame:
         """
         Fills null values in specified columns using the chosen method (mode, median, mean, or a custom value).
 
@@ -56,7 +56,6 @@ class ETLPipeline:
         df (pd.DataFrame): The DataFrame where null values should be filled.
         cols (list): List of column names to process.
         method (str): The filling method ('mode', 'median', 'mean', or 'custom'). Default is 'mode'.
-        inplace (bool): If True, modifies the DataFrame in place. If False, returns a new DataFrame.
         custom_value (any, optional): The value to use when method='custom'.
 
         Returns:
@@ -73,44 +72,30 @@ class ETLPipeline:
 
         if method == 'custom' and custom_value is None:
             raise ValueError("If method='custom', you must provide a 'custom_value'.")
-
-        if inplace:
-            for col in cols:
-                if self.df[col].isnull().sum() > 0: 
-                    if method == 'mode':
-                        self.df[col].fillna(self.df[col].mode()[0], inplace=True)
-                    elif method == 'median':
-                        self.df[col].fillna(self.df[col].median(), inplace=True)
-                    elif method == 'mean':
-                        self.df[col].fillna(self.df[col].mean(), inplace=True)
-                    else:
-                        self.df[col].fillna(custom_value, inplace=True)
-        else:
-            self.df = self.df.copy()
-            for col in cols:
-                if self.df[col].isnull().sum() > 0:
-                    if method == 'mode':
-                        self.df[col] = self.df[col].fillna(self.df[col].mode()[0])
-                    elif method == 'median':
-                        self.df[col] = self.df[col].fillna(self.df[col].median())
-                    elif method == 'mean':
-                        self.df[col].fillna(self.df[col].mean())
-                    else:
-                        self.df[col] = self.df[col].fillna(custom_value)
+        
+        for col in cols:
+            if self.df[col].isnull().sum() > 0:
+                if method == 'mode':
+                    self.df[col] = self.df[col].fillna(self.df[col].mode()[0])
+                elif method == 'median':
+                    self.df[col] = self.df[col].fillna(self.df[col].median())
+                elif method == 'mean':
+                    self.df[col].fillna(self.df[col].mean())
+                else:
+                    self.df[col] = self.df[col].fillna(custom_value)
 
             return self.df
     
-    def detect_outliers(self, cols: list = None, threshold: float = 3) -> pd.DataFrame:
+    def detect_outliers(self, threshold: float = 3, cols: list = None) -> pd.DataFrame:
         """
-        Detects and removes rows with outliers based on Z-score method.
+        Detects and removes rows with outliers based on the Z-score method.
 
         Parameters:
-        df (pd.DataFrame): The input DataFrame.
         cols (list, optional): List of column names to check for outliers. If None, all numeric columns will be used.
         threshold (float): The Z-score threshold beyond which a value is considered an outlier (default: 3).
 
         Returns:
-        pd.DataFrame: A DataFrame with outliers removed.
+        pd.DataFrame: A DataFrame with outliers removed (if inplace=False).
         """
         cols_number= self.df.select_dtypes(include=['number']).columns.tolist()
 
@@ -134,29 +119,74 @@ class ETLPipeline:
 
         return self.df
 
-    def load(self, chunk_size: int, table_name: str, index: bool = False):
+    def load(self, table_name: str, chunk_size: int, index: bool = False):
         """
         Loads the cleaned data into a PostgreSQL database with progress tracking.
 
         Parameters:
-        chunk_size (int): The number of rows to insert at a time.
         table_name (str): The name of the database table.
+        chunk_size (int): The number of rows to insert at a time.
         index (bool): Whether to include the DataFrame index.
 
         Returns:
         str: Confirmation message with total rows inserted and time taken.
         """
 
-        connection = create_engine(self.engine_url)
+        def batch_insert(table, conn, keys, data_iter):
+            dbapi_conn = conn.connect()
+            dbapi_conn.begin()
+
+            batch_count = 0
+            total_rows = 0
+           
+            try :
+
+                with dbapi_conn.connection.cursor() as cur:
+
+                    for data in data_iter :
+                        batch_start_time = time()
+
+                        columns = ', '.join(['"{}"'.format(k) for k in keys])
+                        values_placeholder = ', '.join(['%s'] * len(keys))
+                        sql = f'INSERT INTO {table.name} ({columns}) VALUES ({values_placeholder})'
+
+                        data_list = list(data) 
+
+                        cur.executemany(sql, data_list)
+
+                        batch_end_time = time()
+
+                        total_rows += len(data)
+                        batch_count += 1
+
+                        print(f'Batch {batch_count}: {len(data_list)} rows inserted, 'f'Time = {batch_end_time - batch_start_time:.2f}s, 'f'Total rows = {total_rows}')
+
+                dbapi_conn.commit()
+                print("All batches inserted successfully!...")
+
+            except Exception as e:
+                print('ERROR :',e)
+                dbapi_conn.rollback()
+                
+            finally :
+                dbapi_conn.close()
+                    
 
         start_time = time()
         total_rows = len(self.df)
 
-        self.df.to_sql(table_name, con=connection, if_exists='append', chunksize=chunk_size, index=index)
+        self.df.to_sql(table_name, con=connection, if_exists='append', chunksize=chunk_size, index=index, method=batch_insert)
 
         end_time = time()
 
         return f"Data insertion complete!, total row = {total_rows}, time = {end_time - start_time}"
+
+    def type_writer(text, delay=0.05):
+        for char in text:
+            sys.stdout.write(char)
+            sys.stdout.flush()
+            sleep(delay)
+        print()  
 
     def __repr__(self):
         """

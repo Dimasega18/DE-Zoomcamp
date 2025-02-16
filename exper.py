@@ -1,5 +1,4 @@
-a = [True,False]
-if a :
-    print('anjay')
-else :
-    print('ihir')
+a = 'aw'.join(['a']*2)
+
+print(a)
+
