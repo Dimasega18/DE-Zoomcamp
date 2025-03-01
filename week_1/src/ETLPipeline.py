@@ -1,5 +1,8 @@
 import pandas as pd
 import argparse
+from src import extract,transform,load
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
 
 class ETLPipeline:
     """
@@ -23,41 +26,55 @@ class ETLPipeline:
         parser.add_argument('-H', '--host', default='localhost', help="PostgreSQL host (default: localhost)")
         parser.add_argument('--path', required=True, help="Path of the CSV file")
         parser.add_argument('-tb','--table', required=True, help="Table name")
+        parser.add_argument('-cz','--chunksize', required=True, type=int, help="Chunk size of data")
 
         self.args = parser.parse_args()
         self.path = self.args.path
         self.table_name = self.args.table
+        self.chunksize = self.args.chunksize
         self.engine_url = f"postgresql://{self.args.user}:{self.args.password}@{self.args.host}:{self.args.port}/{self.args.db}"
 
-    def extract(self) -> pd.DataFrame:
-        """
-        Extracts data from a CSV file and loads it into a Pandas DataFrame.
+    def extract(self) :
+        self.df = extract.read_csv_or_parquet(self.path)
 
-        Returns:
-        pd.DataFrame: A DataFrame containing the extracted data.
+        return self.df
 
-        Raises:
-        ValueError: If the file is not in CSV format.
-        """
+    def transform(self, fill_null_operations: list, cols_remove_outliers: list, threshold: int = 3):
+        self.df = self.df.drop_duplicates()
+    
+        for operation in fill_null_operations:
+            self.df = transform.fill_null(
+                self.df, 
+                operation['cols'], 
+                operation['method'], 
+                operation.get('custom_value')
+            )
+    
+        self.df = transform.remove_outliers(self.df, threshold, cols_remove_outliers)
+    
+        return self.df
+    
+    def load(self, index: bool = False) :
 
-    def load(self, chunk_size: int, index: bool = False) -> str:
-        """
-        Loads the processed DataFrame into a PostgreSQL database.
+        self.df.columns = self.df.columns.str.lower()
+        engine_db = create_engine(self.engine_url)
+        Session = sessionmaker(bind = engine_db)
+        session = Session()
 
-        Parameters:
-        table_name (str): Name of the table in the database.
-        chunk_size (int): Number of rows to insert at a time.
-        index (bool): Whether to include the DataFrame index.
-
-        Returns:
-        str: Confirmation message upon successful data insertion.
-        """
-        
         try :
-            engine = create_engine(self.engine_url)
+                load.create_table(self.df, self.table_name, session)
+                self.df.to_sql(self.table_name, con=session.bind ,chunksize=self.chunksize, index=False, if_exists='append', method=load.copy_insert)
+                print('Data successfully inserted!')
 
-        except Exception as e :
-            print('ERROR :',e)
+        except Exception as e:
+            session.rollback()
+            print('Table has been rollback!')
+            print('Error:', e)
+
+        finally :
+            session.close()
+
+        return self.df
 
     def __repr__(self):
         """
