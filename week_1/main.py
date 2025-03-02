@@ -4,7 +4,7 @@ from src.data_utils import type_writer
 pipeline = etl()
 
 # Extract
-type_writer('📁 Extract...')
+type_writer('📁 Extract...',0.5)
 pipeline.extract()
 
 #Transform
@@ -23,5 +23,5 @@ pipeline.transform(
 )
 
 # Load
-type_writer('📃 Load...')
+type_writer('📃 Load...',0.5)
 pipeline.load()
