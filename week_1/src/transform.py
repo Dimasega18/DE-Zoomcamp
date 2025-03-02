@@ -3,10 +3,12 @@ import pandas as pd
 def fill_null(df: pd.DataFrame, cols: list, method: str = 'mode', custom_value=None) -> pd.DataFrame:
     """
     Fills missing values in specified columns using a chosen method.
+
     Parameters:
     cols (list): List of columns to process.
     method (str): Method to fill null values ('mode', 'median', 'mean', or 'custom').
     custom_value (optional): Custom value for filling nulls if method='custom'.
+
     Returns:
     pd.DataFrame: DataFrame with missing values filled.
     """
@@ -36,9 +38,11 @@ def fill_null(df: pd.DataFrame, cols: list, method: str = 'mode', custom_value=N
 def remove_outliers(df: pd.DataFrame, threshold: float = 3, cols: list = None) -> pd.DataFrame:
     """
     Detects and removes outliers using the Z-score method.
+
     Parameters:
     threshold (float): Z-score threshold for detecting outliers (default: 3).
     cols (list, optional): List of numeric columns to check. If None, all numeric columns are used.
+    
     Returns:
     pd.DataFrame: DataFrame with outliers removed.
     """

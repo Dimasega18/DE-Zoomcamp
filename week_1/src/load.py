@@ -5,12 +5,14 @@ import time
 
 def create_table(df: pd.DataFrame, table_name: str, session):
     """
-    Creates a table in the database if it does not exist
+    Creates a table in the database if it does not already exist.
+
     Parameters:
-    df (pd.DataFrame): DataFrame to create the table from.
-    table_name (str): Name of the table to create.
-    engine: SQLAlchemy engine to execute the query.
+    df (pd.DataFrame): The DataFrame used to define the table schema.
+    table_name (str): The name of the table to be created.
+    session: SQLAlchemy session used to execute the query.
     """
+    
     try:
         create_table_query = pd.io.sql.get_schema(df, name=table_name).replace('"', '').lower()
         create_table_query = create_table_query.replace("create table", "create table if not exists")

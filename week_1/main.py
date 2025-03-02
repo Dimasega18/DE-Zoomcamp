@@ -8,19 +8,19 @@ type_writer('📁 Extract...')
 pipeline.extract()
 
 #Transform
-# type_writer('🔃 Transform...')
-# pipeline.transform(
-#     fill_null_operations=[
-#         {'cols': ['VendorID', 'RatecodeID'], 'method': 'custom', 'custom_value': 'Unknown'},
-#         {'cols': ['payment_type', 'store_and_fwd_flag'], 'method': 'mode'},
-#         {'cols': ['passenger_count'], 'method': 'median'}
-#     ],
-#     cols_remove_outliers=[
-#         'passenger_count', 'trip_distance', 'fare_amount', 'extra',
-#         'mta_tax', 'tip_amount', 'total_amount', 'congestion_surcharge'
-#     ],
-#     threshold=3
-# )
+type_writer('🔃 Transform...')
+pipeline.transform(
+    fill_null_operations=[
+        {'cols': ['VendorID', 'RatecodeID'], 'method': 'custom', 'custom_value': 'Unknown'},
+        {'cols': ['payment_type', 'store_and_fwd_flag'], 'method': 'mode'},
+        {'cols': ['passenger_count'], 'method': 'median'}
+    ],
+    cols_remove_outliers=[
+        'passenger_count', 'trip_distance', 'fare_amount', 'extra',
+        'mta_tax', 'tip_amount', 'total_amount', 'congestion_surcharge'
+    ],
+    threshold=3
+)
 
 # Load
 type_writer('📃 Load...')

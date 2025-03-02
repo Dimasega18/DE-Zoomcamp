@@ -35,11 +35,66 @@ class ETLPipeline:
         self.engine_url = f"postgresql://{self.args.user}:{self.args.password}@{self.args.host}:{self.args.port}/{self.args.db}"
 
     def extract(self) :
+        """
+        Reads data from a CSV or Parquet file and loads it into a DataFrame.
+
+        This method reads the file located at `self.path` using `extract.read_csv_or_parquet` 
+        and stores the resulting DataFrame in `self.df`. The DataFrame is then returned.
+
+        Returns:
+        pd.DataFrame: The DataFrame containing the extracted data.
+        """
+
         self.df = extract.read_csv_or_parquet(self.path)
 
         return self.df
 
     def transform(self, fill_null_operations: list, cols_remove_outliers: list, threshold: int = 3):
+        """
+        Applies data transformation steps to clean and preprocess the DataFrame.
+
+        This method performs the following transformations:
+        1. Removes duplicate rows from the DataFrame.
+        2. Fills missing values based on the specified operations.
+        3. Removes outliers from the specified columns using a given threshold.
+
+        Parameters:
+        fill_null_operations (list): A list of dictionaries specifying how to handle missing values. 
+            Each dictionary should contain:
+                - 'cols' (list): Columns to apply the fill operation.
+                - 'method' (str): The method to use ('mean', 'median', 'mode', or 'custom').
+                - 'custom_value' (optional): A custom value to use if the method is 'custom'.
+        cols_remove_outliers (list): A list of column names from which outliers should be removed.
+        threshold (int, optional): The z-score threshold for detecting outliers (default is 3).
+
+        Returns:
+        pd.DataFrame: The transformed DataFrame after applying all operations.
+
+        Example:
+        --------
+        ```
+        transform(
+            fill_null_operations=[
+                {'cols': ['VendorID', 'RatecodeID'], 'method': 'custom', 'custom_value': 'Unknown'},
+                {'cols': ['payment_type', 'store_and_fwd_flag'], 'method': 'mode'},
+                {'cols': ['passenger_count'], 'method': 'median'}
+            ],
+            cols_remove_outliers=[
+                'passenger_count', 'trip_distance', 'fare_amount', 'extra',
+                'mta_tax', 'tip_amount', 'total_amount', 'congestion_surcharge'
+            ],
+            threshold=3
+        )
+        ```
+
+        This will:
+            - Fill missing values in 'VendorID' and 'RatecodeID' with 'Unknown'.
+            - Fill missing values in 'payment_type' and 'store_and_fwd_flag' using mode.
+            - Fill missing values in 'passenger_count' using median.
+            - Remove outliers from the specified numeric columns using a z-score threshold of 3.
+            - Drop duplicate rows from the dataset.
+        """
+
         self.df = self.df.drop_duplicates()
     
         for operation in fill_null_operations:
@@ -55,6 +110,23 @@ class ETLPipeline:
         return self.df
     
     def load(self, index: bool = False) :
+
+        """
+        Loads the DataFrame into a database table.
+
+        This method performs the following steps:
+            1. Converts all column names to lowercase for consistency.
+            2. Establishes a connection to the database using SQLAlchemy.
+            3. Creates the table if it does not exist.
+            4. Inserts data into the table using `to_sql` with the `append` option.
+            5. Handles exceptions and rolls back transactions if an error occurs.
+
+        Parameters:
+        index (bool, optional): Whether to include the DataFrame index in the database (default is False).
+
+        Returns:
+        pd.DataFrame: The DataFrame after loading it into the database.
+        """
 
         self.df.columns = self.df.columns.str.lower()
         engine_db = create_engine(self.engine_url)
